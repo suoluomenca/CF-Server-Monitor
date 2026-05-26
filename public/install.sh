@@ -152,7 +152,7 @@ create_script() {
 SERVER_ID="$1"
 SECRET="$2"
 WORKER_URL="$3"
-REPORT_INTERVAL="${4:-60}"
+REPORT_INTERVAL="${REPORT_INTERVAL:-60}"
 
 # 日志函数 - 增强版，支持 fallback
 log() {
@@ -323,8 +323,18 @@ while true; do
     [ -z "$RAM_USED" ] && RAM_USED=0
     
     if [ "$RAM_TOTAL" -gt 0 ]; then
-        RAM=$(safe_div_float "$RAM_USED" "$RAM_TOTAL" "0.00")
-        RAM=$(awk -v r="$RAM" 'BEGIN {if (r > 100) print "100.00"; else printf "%.2f", r * 100}')
+        RAM=$(awk -v used="$RAM_USED" -v total="$RAM_TOTAL" '
+            BEGIN {
+                if (total <= 0) {
+                    print "0.00"
+                } else {
+                    pct = (used / total) * 100
+                    if (pct > 100) pct = 100
+                    if (pct < 0) pct = 0
+                    printf "%.2f", pct
+                }
+            }
+        ')
     else
         RAM="0.00"
     fi
@@ -417,6 +427,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+Environment="REPORT_INTERVAL=${REPORT_INTERVAL}"
 ExecStart=/bin/bash "${SCRIPT_FILE}" "${escaped_server_id}" "${escaped_secret}" "${escaped_worker_url}"
 Restart=always
 RestartSec=10
